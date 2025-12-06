@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+### Short description
 
-## Getting Started
+On each reload, you should receive a response almost instantly, but after the revalidate period expires, you will see a long loading time (`sleep("10s")` in `CachedPart`)
 
-First, run the development server:
+### Details
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+For `CachedPart`, `cacheLife({ stale: 5, revalidate: 25, expire: 10000 })` is set;
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+According to the [documentation](https://nextjs.org/docs/app/api-reference/functions/cacheLife#revalidate), with this configuration, background revalidation should run every 25 seconds, and while it's revalidating on-background users will continue to receive the old content
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Above the content, `cookies()` is used, from which the `test` key is obtained and passed as a prop to `CachedPart`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The component works correctly until revalidation completes, recognizing that the prop hasn't changed - it immediately serves content from the cache
 
-## Learn More
+After the revalidation period expires (with the same cookies still present, i.e., the `test` prop) - the component ignores the still-existing cache and the user waits for its update
 
-To learn more about Next.js, take a look at the following resources:
+**Note**: _With the same configuration, but without using the dynamic API (`cookies()`) on the page - everything works correctly_
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Visual details:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+![image.png](./readme/illustration.png)
 
-## Deploy on Vercel
+### Why this is a bug:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+https://nextjs.org/docs/app/api-reference/functions/cacheLife#revalidate
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> ### revalidate
+>
+> How often the server regenerates cached content in the background.
+>
+> When a request arrives after this period, the server:
+>
+> - Serves the cached version immediately (if available)
+> - Regenerates content in the background
+> - Updates the cache with fresh content
+> - Similar to Incremental Static Regeneration (ISR)
+
+### Summary
+
+Expected behavior: Same as without Dynamic API - the user always receives content immediately, and updates happen in the background
+
+Actual behavior: After the revalidate period expires, you will see a long loading time for 10 seconds and only then the content
